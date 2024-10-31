@@ -1,0 +1,15 @@
+{
+  "files.associations": {
+    "__config": "c",
+    "user.h": "c",
+    "proc.h": "c",
+    "my_scall.h": "c",
+    "mmu.h": "c",
+    "memlayout.h": "c",
+    "date.h": "c",
+    "param.h": "c",
+    "defs.h": "c",
+    "x86.h": "c",
+    "types.h": "c"
+  }
+}
