@@ -21,3 +21,8 @@
 #define SYS_mkdir 20
 #define SYS_close 21
 #define SYS_mycall 22
+#define SYS_setgenus 23
+#define SYS_getgenus 24
+#define SYS_getcapacity 25
+#define SYS_oputc 26
+#define SYS_qprint 27

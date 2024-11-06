@@ -10,6 +10,9 @@
     "param.h": "c",
     "defs.h": "c",
     "x86.h": "c",
-    "types.h": "c"
+    "types.h": "c",
+    "new": "c",
+    "syscall.h": "c",
+    "cstdlib": "c"
   }
 }

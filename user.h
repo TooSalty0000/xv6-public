@@ -24,6 +24,11 @@ char *sbrk(int);
 int sleep(int);
 int uptime(void);
 int mycall(int, int);
+int setgenus(int);
+int getgenus(void);
+int getcapacity(void);
+int oputc(int, char, int);
+int queuepfid(void);
 
 // ulib.c
 int stat(const char *, struct stat *);

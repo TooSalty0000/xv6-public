@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "genus.h"
 #include "my_scall.h"
 
 int sys_fork(void)
@@ -92,4 +93,38 @@ int sys_my_scall(void)
   argint(1, &b);
   int c = my_scall(a, b);
   return c;
+}
+
+int sys_setgenus(void)
+{
+  int c;
+  argint(0, &c);
+  int genus = setgenus_sys(c);
+  return genus;
+}
+
+int sys_getgenus(void)
+{
+  return getgenus_sys();
+}
+
+int sys_getcapacity(void)
+{
+  return getcapacity_sys();
+}
+
+int sys_oputc(void)
+{
+  int fd;
+  char c;
+  int id;
+  if (argint(0, &fd) < 0 || argint(1, &c) < 0 || argint(2, &id) < 0)
+    return -1;
+  oputc(fd, c, id);
+  return 0;
+}
+
+int sys_qprint(void)
+{
+  return queuepfid();
 }

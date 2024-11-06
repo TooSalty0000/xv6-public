@@ -102,6 +102,9 @@ extern int sys_uptime(void);
 extern int sys_my_scall(void);
 extern int sys_setgenus(void);
 extern int sys_getgenus(void);
+extern int sys_getcapacity(void);
+extern int sys_oputc(void);
+extern int sys_qprint(void);
 
 static int (*syscalls[])(void) = {
     [SYS_fork] sys_fork,
@@ -126,6 +129,11 @@ static int (*syscalls[])(void) = {
     [SYS_mkdir] sys_mkdir,
     [SYS_close] sys_close,
     [SYS_mycall] sys_my_scall,
+    [SYS_setgenus] sys_setgenus,
+    [SYS_getgenus] sys_getgenus,
+    [SYS_getcapacity] sys_getcapacity,
+    [SYS_oputc] sys_oputc,
+    [SYS_qprint] sys_qprint,
 };
 
 void syscall(void)

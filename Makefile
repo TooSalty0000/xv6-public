@@ -13,6 +13,8 @@ OBJS = \
 	main.o\
 	mp.o\
 	my_scall.o\
+	genus.o\
+	oputc.o\
 	picirq.o\
 	pipe.o\
 	proc.o\
@@ -170,6 +172,8 @@ UPROGS=\
 	_cat\
 	_echo\
 	_forktest\
+	_genustest\
+	_gstresstest\
 	_grep\
 	_init\
 	_kill\

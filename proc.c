@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "genus.h"
 
 struct
 {
@@ -38,7 +39,6 @@ struct cpu *
 mycpu(void)
 {
   int apicid, i;
-
   if (readeflags() & FL_IF)
     panic("mycpu called with interrupts enabled\n");
 
@@ -140,6 +140,7 @@ void userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0; // beginning of initcode.S
+  p->genus_id = 0;
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
@@ -203,6 +204,8 @@ int fork(void)
   }
   np->sz = curproc->sz;
   np->parent = curproc;
+  np->genus_id = curproc->genus_id;
+  addgenus(np->genus_id);
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
@@ -252,6 +255,8 @@ void exit(void)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
+
+  removegenus(curproc->genus_id);
 
   acquire(&ptable.lock);
 
