@@ -60,7 +60,14 @@ struct proc
   struct file *ofile[NOFILE]; // Open files
   struct inode *cwd;          // Current directory
   char name[16];              // Process name (debugging)
-  int genus_id;               // Genus ID
+  unsigned int genus_id;      // Genus ID
+  struct proc_node *next;
+};
+
+struct proc_queue
+{
+  struct proc *front;
+  struct proc *rear;
 };
 
 // Process memory is laid out contiguously, low addresses first:

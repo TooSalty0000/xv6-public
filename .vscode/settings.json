@@ -13,6 +13,16 @@
     "types.h": "c",
     "new": "c",
     "syscall.h": "c",
-    "cstdlib": "c"
+    "cstdlib": "c",
+    "genus.h": "c",
+    "random.h": "c",
+    "spinlock.h": "c",
+    "fcntl.h": "c",
+    "*.tcc": "c",
+    "exception": "c",
+    "memory_resource": "c",
+    "iosfwd": "c",
+    "ostream": "c",
+    "streambuf": "c"
   }
 }

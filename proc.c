@@ -7,12 +7,16 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "genus.h"
+#include "random.h"
 
 struct
 {
   struct spinlock lock;
   struct proc proc[NPROC];
+  struct proc_queue queue;
 } ptable;
+
+extern struct genus_table gtable;
 
 static struct proc *initproc;
 
@@ -21,10 +25,91 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+static struct proc *lottery_select(void);
 
 void pinit(void)
 {
+  ptable.queue.front = 0;
+  ptable.queue.rear = 0;
+
   initlock(&ptable.lock, "ptable");
+}
+
+int check_proc_queue(struct proc *p)
+{
+  struct proc *temp = ptable.queue.front;
+
+  while (temp != 0)
+  {
+    if (temp == p)
+    {
+      return 1;
+    }
+    temp = temp->next;
+  }
+
+  return 0;
+}
+
+// Enqueue function
+void enqueue_proc(struct proc *p)
+{
+  struct proc *new_node = p;
+  new_node = p;
+  new_node->next = 0;
+
+  if (ptable.queue.front == 0)
+  {
+    ptable.queue.front = new_node;
+    ptable.queue.rear = new_node;
+  }
+  else if (check_proc_queue(p))
+  {
+    return;
+  }
+  else
+  {
+    ptable.queue.rear->next = new_node;
+    ptable.queue.rear = new_node;
+  }
+}
+
+// Dequeue function
+struct proc *dequeue_proc(int gid)
+{
+  struct proc *temp = ptable.queue.front;
+  struct proc *prev = 0;
+
+  // Find the process in the queue with the given genus id
+  while (temp != 0)
+  {
+    if (temp->genus_id == gid && temp->state == RUNNABLE)
+    {
+      // Update the queue pointers
+      if (prev == 0)
+      { // If it's the front node
+        ptable.queue.front = temp->next;
+      }
+      else
+      {
+        prev->next = temp->next;
+      }
+
+      // If we are removing the last node, update the rear pointer
+      if (temp == ptable.queue.rear)
+      {
+        ptable.queue.rear = prev;
+      }
+
+      // Save the process pointer to return and free the node
+      struct proc *proc = temp;
+      return proc;
+    }
+    prev = temp;
+    temp = temp->next;
+  }
+
+  return 0; // Return NULL if no process with the given gid was found
 }
 
 // Must be called with interrupts disabled
@@ -58,6 +143,7 @@ mycpu(void)
 struct proc *
 myproc(void)
 {
+  srand(ticks * 123456789 + 123456789); // Seed the random number generator
   struct cpu *c;
   struct proc *p;
   pushcli();
@@ -152,6 +238,7 @@ void userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  enqueue_proc(p);
 
   release(&ptable.lock);
 }
@@ -223,6 +310,7 @@ int fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  enqueue_proc(np);
 
   release(&ptable.lock);
 
@@ -346,16 +434,11 @@ void scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
+    // Use lottery selection to find the next process to run
     acquire(&ptable.lock);
-    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if ((p = lottery_select()) != 0)
     {
-      if (p->state != RUNNABLE)
-        continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
+      // Switch to the chosen process
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -364,7 +447,6 @@ void scheduler(void)
       switchkvm();
 
       // Process is done running for now.
-      // It should have changed its p->state before coming back.
       c->proc = 0;
     }
     release(&ptable.lock);
@@ -400,7 +482,9 @@ void sched(void)
 void yield(void)
 {
   acquire(&ptable.lock); // DOC: yieldlock
-  myproc()->state = RUNNABLE;
+  struct proc *p = myproc();
+  p->state = RUNNABLE;
+  enqueue_proc(p);
   sched();
   release(&ptable.lock);
 }
@@ -476,7 +560,10 @@ wakeup1(void *chan)
 
   for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if (p->state == SLEEPING && p->chan == chan)
+    {
       p->state = RUNNABLE;
+      enqueue_proc(p);
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -502,7 +589,10 @@ int kill(int pid)
       p->killed = 1;
       // Wake process from sleep if necessary.
       if (p->state == SLEEPING)
+      {
         p->state = RUNNABLE;
+        enqueue_proc(p);
+      }
       release(&ptable.lock);
       return 0;
     }
@@ -546,4 +636,78 @@ void procdump(void)
     }
     cprintf("\n");
   }
+}
+
+// Function to perform lottery selection and return a pointer to a selected process
+struct proc *lottery_select(void)
+{
+  struct proc *p;
+  struct genus *available_genus[MAXGENUS];
+  int genus_count = 0;
+  struct genus *g;
+
+  // Get all genus that are set
+  acquire(&gtable.lock);
+  for (g = gtable.genus; g < &gtable.genus[MAXGENUS]; g++)
+  {
+    if (g->isSet != 0)
+    {
+      available_genus[genus_count++] = g;
+    }
+  }
+
+  // Add a default genus for processes that are not assigned a genus
+  struct genus default_genus = {0, 0, 0};
+  available_genus[genus_count++] = &default_genus;
+  default_genus.cValue = 10;
+
+  // Generate an execution list of genera based on lottery scheduling
+  int total_c_value = gtable.total_c_value + 10; // Add default genus cValue
+  int execution_list[genus_count];
+  int execution_list_size = genus_count;
+  int execution_list_index = 0;
+
+  while (execution_list_index < execution_list_size && genus_count > 0)
+  {
+    int random_number = rand_int() % total_c_value; // Random number between 0 and total_c_value
+
+    // Select genus based on the random number and cumulative cValue
+    for (int i = 0; i < genus_count; i++)
+    {
+      random_number -= available_genus[i]->cValue;
+
+      if (random_number <= 0)
+      {
+        // Insert the selected genus ID into the execution list
+        execution_list[execution_list_index++] = available_genus[i]->isSet;
+
+        // Decrease total_c_value by the selected genus's cValue
+        total_c_value -= available_genus[i]->cValue;
+
+        // Remove the selected genus from available_genus list by shifting
+        for (int j = i; j < genus_count - 1; j++)
+        {
+          available_genus[j] = available_genus[j + 1];
+        }
+
+        // Reduce genus_count and break the loop to pick the next genus
+        genus_count--;
+        break;
+      }
+    }
+  }
+  release(&gtable.lock);
+
+  // Loop over the execution list to find and return a matching process
+  for (int p_index = 0; p_index < execution_list_size; p_index++)
+  {
+    // cprintf("Selected genus: %d\n", execution_list[p_index]);
+    p = dequeue_proc(execution_list[p_index]);
+    if (p != 0)
+    {
+      return p;
+    }
+  }
+
+  return 0; // No runnable process found
 }

@@ -4,7 +4,7 @@
 #include "spinlock.h"
 
 // Define constants
-#define MAX_OUTPUT_BUFFERS 64
+#define MAX_OUTPUT_BUFFERS 1024
 #define OUTPUT_BUFFER_SIZE 256
 
 typedef struct OutputBuffer

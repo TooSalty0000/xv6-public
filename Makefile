@@ -182,6 +182,9 @@ UPROGS=\
 	_mkdir\
 	_myprog\
 	_rm\
+	_randtest\
+	_schedtest\
+	_schedtest2\
 	_sh\
 	_stressfs\
 	_usertests\

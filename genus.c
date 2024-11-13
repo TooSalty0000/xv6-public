@@ -6,28 +6,22 @@
 #include "x86.h"
 #include "proc.h"
 #include "genus.h"
-#include "spinlock.h"
 
-#define MAX_GENUS 64
-#define MAX_C_VALUE 90
+struct genus_table gtable;
 
-struct
-{
-  struct spinlock lock;
-  struct genus genus[MAX_GENUS];
-  int total_c_value;
-} gtable;
+unsigned int cur_genus_id = 1;
 
 // Initialize the genus table
 void ginit(void)
 {
-  for (int i = 0; i < MAX_GENUS; i++)
+  for (int i = 0; i < MAXGENUS; i++)
   {
     gtable.genus[i].isSet = 0;
     gtable.genus[i].cValue = 0;
     gtable.genus[i].procCount = 0;
   }
   gtable.total_c_value = 0;
+  cur_genus_id = 1;
   initlock(&gtable.lock, "genus_lock");
 }
 
@@ -48,21 +42,25 @@ int setgenus_sys(int c)
   }
 
   // if the total c value is greater than MAX_C_VALUE, return 0
-  if (gtable.total_c_value + c > MAX_C_VALUE)
+  if (gtable.total_c_value + c > MAXCVALUE)
   {
     return 0;
   }
 
   // Find unused genus ID
-  int id = 1;
   struct genus *g;
   acquire(&gtable.lock);
-  for (g = gtable.genus; g < &gtable.genus[MAX_GENUS]; g++)
+  for (g = gtable.genus; g < &gtable.genus[MAXGENUS]; g++)
   {
     // If the genus is not set, set it
     if (g->isSet == 0)
     {
-      g->isSet = 1;
+      int id = cur_genus_id++;
+      if (cur_genus_id <= 0)
+      {
+        cur_genus_id = 1;
+      }
+      g->isSet = id;
       g->cValue = c;
       g->procCount = 1;
       gtable.total_c_value += c;
@@ -70,7 +68,6 @@ int setgenus_sys(int c)
       release(&gtable.lock);
       return id;
     }
-    id++;
   }
 
   // If no genus ID is available, return 0
@@ -89,7 +86,14 @@ int getcapacity_sys()
   struct proc *p = myproc();
   struct genus *g;
   acquire(&gtable.lock);
-  g = &gtable.genus[p->genus_id - 1];
+  for (g = gtable.genus; g < &gtable.genus[MAXGENUS]; g++)
+  {
+    if (g->isSet != 0 && g->isSet == p->genus_id)
+    {
+      release(&gtable.lock);
+      return g->cValue;
+    }
+  }
   release(&gtable.lock);
   if (g->isSet == 0)
   {
@@ -98,7 +102,7 @@ int getcapacity_sys()
   return g->cValue;
 }
 
-void addgenus(int gid)
+void addgenus(unsigned int gid)
 {
   if (gid == 0)
   {
@@ -107,20 +111,21 @@ void addgenus(int gid)
 
   struct genus *g;
   acquire(&gtable.lock);
-  g = &gtable.genus[gid - 1];
-  if (g->isSet == 1)
+  for (g = gtable.genus; g < &gtable.genus[MAXGENUS]; g++)
   {
-    g->procCount++;
+    if (g->isSet == gid)
+    {
+      g->procCount++;
+      release(&gtable.lock);
+      return;
+    }
   }
-  else
-  {
-    panic("Genus not set");
-  }
+  panic("addgenus: genus not found");
   release(&gtable.lock);
   return;
 }
 
-void removegenus(int gid)
+void removegenus(unsigned int gid)
 {
   if (gid == 0)
   {
@@ -129,17 +134,22 @@ void removegenus(int gid)
 
   struct genus *g;
   acquire(&gtable.lock);
-  g = &gtable.genus[gid - 1];
-  if (g->isSet == 1 && g->procCount >= 1)
+  for (g = gtable.genus; g < &gtable.genus[MAXGENUS]; g++)
   {
-    g->procCount--;
-    if (g->procCount == 0)
+    if (g->isSet == gid)
     {
-      gtable.total_c_value -= g->cValue;
-      g->isSet = 0;
-      g->cValue = 0;
+      g->procCount--;
+      if (g->procCount == 0)
+      {
+        gtable.total_c_value -= g->cValue;
+        g->isSet = 0;
+        g->cValue = 0;
+      }
+      release(&gtable.lock);
+      return;
     }
   }
+  panic("removegenus: genus not found");
   release(&gtable.lock);
   return;
 }
